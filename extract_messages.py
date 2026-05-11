@@ -1,13 +1,12 @@
 import json
-import os
 from pathlib import Path
 from datetime import datetime
 
-# Config based on README
+# CONFIGURATION
 INPUT_FILE = Path('result.json')  # Symbolic link to telegram_exports/file.json
 OUTPUT_DIR = Path('tip_messages')
 TARGET_CHANNEL = 'Turn Of Foot - Mainline'
-START_DATE = datetime(2025, 12, 25)
+START_DATE = datetime(2025, 12, 24)
 
 def extract():
     OUTPUT_DIR.mkdir(exist_ok=True)
@@ -36,10 +35,23 @@ def extract():
         entities = msg.get('text_entities', [])
         if len(entities) < 2: continue
 
-        # Header check: Bold/Underline + Double Newline
-        if entities[0].get('type') in ['bold', 'underline'] and \
-           entities[1].get('text', '').startswith('\n\n'):
-            
+        # --- Updated Filter Logic for "Boundary" Newlines ---
+        first = entities[0]
+        second = entities[1]
+
+        # Check if the first block is a styled header
+        is_header = first.get('type') in ['bold', 'underline']
+        
+        # 1. Clean the boundary text of horizontal spaces (keep newlines)
+        # We take the end of the first and start of the second
+        header_end = first.get('text', '').rstrip(' ')
+        body_start = second.get('text', '').lstrip(' ')
+        
+        # 2. Combine them and check for at least 2 newlines
+        boundary_text = header_end[-2:] + body_start[:2]
+        has_double_newline = boundary_text.count('\n') >= 2
+
+        if is_header and has_double_newline:
             file_id = f"{msg_dt.strftime('%Y%m%d_%H%M')}_{msg.get('id')}"
             
             # Save JSON
