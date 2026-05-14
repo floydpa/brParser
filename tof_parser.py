@@ -1,3 +1,5 @@
+# Parser code for 'Turn Of Foot - Mainline' channel
+
 import re
 import json
 import os
@@ -9,7 +11,8 @@ from dataclasses import dataclass, asdict
 class DraftBet:
     ID: str
     tipSent: str
-    tipSummary: str
+    msgTipSummary: str  # Original, as provided by the tipster
+    tipSummary: str     # Parsed tip summary in consistent format
     raceDate: str
     racecourse: str
     raceTime: str
@@ -48,7 +51,7 @@ class TurnOfFootParser:
                     json.dump(asdict(bet), f, indent=2, ensure_ascii=False)
             
             print("-" * 50)
-
+            
     def parse_message(self, text, msg_metadata):
         lines = [l.strip() for l in text.replace("\u00A0", " ").splitlines() if l.strip()]
         msg_id = msg_metadata.get('id')
@@ -58,16 +61,28 @@ class TurnOfFootParser:
         current_course = ""
         global_bet_count = 1
 
-        for line in lines:
-            if re.match(r"^[A-Za-z][A-Za-z\s]+$", line):
-                current_course = line
+        for line in lines:            
+            # 1. Match lines like "Cheltenham Day 1", "Windsor (today)", or "Ascot (Saturday)"
+            # This allows words, numbers, spaces, and optional parentheses
+            if re.match(r"^[A-Za-z0-9][A-Za-z0-9\s]*(?:\s*\(.*?\))?$", line):
+                # First, strip out bracketed text like "(today)" or "(Saturday)"
+                clean_course = re.sub(r"\s*\(.*?\)", "", line).strip()
+                
+                # Next, strip out "Day N" (case-insensitive)
+                clean_course = re.sub(r"\s+day\s+\d+", "", clean_course, flags=re.IGNORECASE).strip()
+
+                # Special case Cheltenham
+                clean_course = "Cheltenham" if clean_course in ["Day 1", "Day 2", "Day 3", "Day 4"] else clean_course
+                
+                current_course = clean_course
                 continue
-            
+
             # parse_line returns (DraftBet, Filename) tuples
             parsed_batch = self.parse_line(line, current_course, sent_dt, msg_id, global_bet_count)
             for bet_obj, filename in parsed_batch:
                 results.append((bet_obj, filename))
-                print(f"  {bet_obj.tipSummary}")
+                print(f"  {bet_obj.msgTipSummary}")
+                print(f"        {bet_obj.tipSummary}")
                 global_bet_count += 1
         
         return results
@@ -76,7 +91,7 @@ class TurnOfFootParser:
         pattern = r"^(?P<time>\d{1,2}[.:]\d{2})\s*-\s*(?P<horses>.+?)\s+(?P<stake>\d+(\.\d+)?)pt\s+(?P<type>win|e/w|ew)\s+(?P<odds>.+)$"
         match = re.search(pattern, line, re.IGNORECASE)
         if not match: return []
-
+        
         raw_time = match.group("time").replace('.', ':')
         horses = [h.strip() for h in match.group("horses").split(",")]
         raw_odds_blob = match.group("odds")
@@ -86,7 +101,14 @@ class TurnOfFootParser:
         places = place_match.group(1) if place_match else ""
         
         # 2. Clean human chatter for the Summary
-        chatter_phrases = ["generally", "if you can nab it", "if you're quick"]
+        chatter_phrases = [
+            "Edited", "NRNB",
+            "more generally", "generally",
+            "apiece",
+            "if you can nab it", "if you're quick", "if you can get it",
+            "in a place or two", "with a couple of firms", "with a few firms", 
+            "at several firms", "at a few firms", "around"
+            ]
         summary_odds_blob = re.sub(r"\s+with\s+\d+\s+places?(?:\s+around)?", "", raw_odds_blob, flags=re.IGNORECASE).strip()
         for phrase in chatter_phrases:
             summary_odds_blob = re.sub(rf"\s*{phrase}", "", summary_odds_blob, flags=re.IGNORECASE)
@@ -121,13 +143,14 @@ class TurnOfFootParser:
             advised_odds = strict_odds_match.group(1) if strict_odds_match else summary_odds
 
             # Construct Summary
-            summary = f"{course} {display_time_h:02}:{race_m:02}|{horse}|{stake_str} {bet_type.lower()} @ {summary_odds}"
+            summary = f"{course} {display_time_h:02}:{race_m:02} - {horse} {stake_str} {bet_type.lower()} @ {summary_odds}"
             if places: summary += f" with {places} places"
 
             current_count = start_count + i
             bet = DraftBet(
                 ID = f"{msg_id}_{current_count}",
                 tipSent = sent_dt.strftime('%Y-%m-%d %H:%M'),
+                msgTipSummary = line,
                 tipSummary = summary,
                 raceDate = race_dt.strftime('%d/%m/%Y'),
                 racecourse = course,
@@ -146,4 +169,3 @@ class TurnOfFootParser:
 if __name__ == "__main__":
     parser = TurnOfFootParser()
     parser.run()
-

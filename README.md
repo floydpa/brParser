@@ -24,7 +24,7 @@ This result.json file is then used as input to the process that extracts all the
 
 tip_messages
 ------------
-Contains all the JSON and TXT output files resulting from processing result.json to split into individual messages.
+Contains all the JSON and TXT output files resulting from processing result.json to split into individual messages (by extract_messages.py)
 Each individual tip message has two files - the original JSON message and the TXT equivalent for the parser.
 
 parser_input
@@ -53,7 +53,8 @@ Draft bet JSON files will be created as follows:
 {
   "ID": "<telegram_msg_id>_<count>",
   "tipSent": "<timestamp>",
-  "tipSummary": "<tip_summary>",
+  "msgTipSummary": "<message_tip_summary>",
+  "tipSummary": "<parsed_tip_summary>",
   "raceDate": "06/05/2026",
   "racecourse": "Chester",
   "raceTime": "14:05",
@@ -70,16 +71,28 @@ Where:
 <count> is an integer starting at 1, incremented for each horse tipped within the same Telegram message.
 <timestamp> is the date and time the Telegram message was sent in the format 'YYYY-MM-DD HH:MM'
 <tip_summary> is in the format of these examples:
-  Chester 15:05|Illinois|0.5pt ew @ 5/1
-  Chester 15:40|Strength Of Spirit|0.5pt ew @ 5/1 with 4 places
-  Windsor 16:00|Stintino Sunset|0.5pt ew @ 13/2
-  Southwell 20:30|Bintaryana|1pt win @ 13/8
+  Chester 15:05 - Illinois 0.5pt ew @ 5/1
+  Chester 15:40 - Strength Of Spirit 0.5pt ew @ 5/1 with 4 places
+  Windsor 16:00 - Stintino Sunset 0.5pt ew @ 13/2
+  Southwell 20:30 - Bintaryana 1pt win @ 13/8
 Note that stakePts should either be an integer like 1 or 2 or have the minimum decimal places and will be followed by 'pt' to signify points.
 Only if the tip contains a value for advisedPlaces will the summary contain the string " with N places" at the end.
 
 The 'tipSummary' string is something to aid the testing process as it provides a quick visual summary of the bet to be placed.
 
 Note that the raceDate should be set to the date of the Telegram message unless the raceTime is before the time of the message in which case it should be assumed that the tip relates to the next day's racing.
+
+Bulk upload
+-----------
+1) Dump messages from Telegram as a Data extract. This will give a result.json file.
+2) In extract_messages.py change the start date in the message filter if needed.
+3) Use extract_messages.py to process result.json. 
+4) This will create a pair of files (JSON and TXT) for each tip (in tip_messages)
+5) Move one or more pairs of files to the parser_input directory
+6) Run tof_parser.py to process input files creating one JSON file per tip in parser_output
+7) Move parser_input files to tests/fixtures/input as regression test input
+8) Copy parser_output files to tests/fixtures/expected as regress test expected files
+9) Move parser output files to draft_bets folder to be used to populate the Google Sheet
 
 Regression test suite
 ---------------------

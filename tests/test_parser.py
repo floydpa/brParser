@@ -11,6 +11,7 @@ from tof_parser import TurnOfFootParser
 # Define paths
 FIXTURE_INPUT = Path('tests/fixtures/input')
 FIXTURE_EXPECTED = Path('tests/fixtures/expected')
+FIXTURE_OUTPUT = Path('tests/fixtures/output')  # For storing actual outputs for debugging
 
 # Get list of all test files to create individual test cases
 test_files = [f.name for f in FIXTURE_INPUT.glob('*.txt')]
@@ -39,14 +40,24 @@ def test_parser_regression(filename):
     for bet_obj, bet_filename in results:
         expected_file = FIXTURE_EXPECTED / f"{bet_filename}.json"
         
+        # Convert dataclass to dict for comparison
+        import dataclasses
+        actual_data = dataclasses.asdict(bet_obj)
+
+        # Save actual data for debugging if needed
+        debug_output = FIXTURE_OUTPUT / f"{bet_filename}.json"
+
+        with open(debug_output, 'w', encoding='utf-8') as f:
+            json.dump(actual_data, f, indent=2, ensure_ascii=False) 
+        
         assert expected_file.exists(), f"Expected file {expected_file.name} not found!"
         
         with open(expected_file, 'r', encoding='utf-8') as f:
             expected_data = json.load(f)
         
-        # Convert dataclass to dict for comparison
-        import dataclasses
-        actual_data = dataclasses.asdict(bet_obj)
-        
         # This will show a clear 'diff' in the terminal if something doesn't match
         assert actual_data == expected_data, f"Mismatch in {bet_filename}.json"
+
+        # If that works then remove the debug file to keep things clean
+        debug_output.unlink()
+

@@ -5,10 +5,14 @@ tip_messages/
 parser_input/
 parser_output/
 draft_bets
+desktop_clone_session.session
+test_suite_session.session
+.DS_Store
 
 # Exclude regression tests for now
 tests/fixtures/input/
 tests/fixtures/expected/
+tests/fixtures/output/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
